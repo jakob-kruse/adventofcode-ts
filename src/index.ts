@@ -1,56 +1,71 @@
-import console, { log } from "console";
 import fs from "fs/promises";
 
-function tap<T>(d: T) {
-  console.log(d);
+type Color = "red" | "green" | "blue";
+type Move = { amount: number; color: Color };
+type MoveSet = Move[][];
+type Game = {
+  id: number;
+  sets: MoveSet;
+};
+
+type ColorCounts = Record<Color, number>;
+
+function trim(s: string) {
+  return s.trim();
+}
+
+function tap<T>(d: T, ...other: any[]) {
+  console.log(d, ...other);
   return d;
 }
 
-function part1(inputLines: string[]) {
-  return inputLines
-    .map((line) => line.split(""))
-    .map((chars) => chars.map(Number))
-    .map((numChars) => numChars.filter((n) => !isNaN(n)))
-    .map((nums) => [nums[0], nums[nums.length - 1]])
-    .map((firstLast) => firstLast.join(""))
-    .map((str) => parseInt(str))
-    .reduce((sum, num) => sum + num, 0);
+function parseGame(str: string): Game {
+  const [title, ...setsStr] = str.split(":");
+  const [, id] = title.split(" ");
+
+  const sets: MoveSet = setsStr
+    .join("")
+    .split(";")
+    .map((setStr) =>
+      setStr
+        .split(",")
+        .map(trim)
+        .map((move) => {
+          const [amount, color] = move.split(" ").map(trim);
+
+          return {
+            color: color as Color,
+            amount: parseInt(amount),
+          };
+        })
+    );
+
+  return {
+    id: parseInt(id),
+    sets,
+  };
 }
 
-function part2(inputLines: string[]) {
-  const numberLiterals = [
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-  ];
+function countColors(set: Move[]): ColorCounts {
+  return set.reduce(
+    (max, { color, amount }) => {
+      return {
+        ...max,
+        [color]: max[color] + amount,
+      };
+    },
+    { red: 0, green: 0, blue: 0 } as ColorCounts
+  );
+}
 
-  let res: number[][] = [];
-  for (let line of inputLines) {
-    console.log(line);
-    let nums: number[] = [];
-    while (line.length > 0) {
-      for (const lit of numberLiterals) {
-        if (line.startsWith(lit)) {
-          nums.push(numberLiterals.indexOf(lit) + 1);
-        }
-      }
-
-      if (!isNaN(Number(line[0]))) {
-        nums.push(Number(line[0]));
-      }
-      line = line.substring(1);
-    }
-
-    res.push(nums);
-  }
-
-  return part1(res.map((r) => r.join("")));
+function isGamePossible(max: ColorCounts, game: Game) {
+  return game.sets
+    .map(countColors)
+    .every((colorCount) =>
+      Object.entries(colorCount).every(
+        ([color, amount]) => amount <= max[color]
+      )
+    );
 }
 
 async function run() {
@@ -58,13 +73,37 @@ async function run() {
     .split("\n")
     .filter(Boolean);
 
-  const result1 = part1(inputLines);
+  const max = {
+    red: 12,
+    green: 13,
+    blue: 14,
+  };
 
-  console.log(`Part 1: ${result1}`);
+  const part1 = inputLines
+    .map(parseGame)
+    .filter((game) => isGamePossible(max, game))
+    .reduce((acc, game) => acc + game.id, 0);
 
-  const result2 = part2(inputLines);
+  tap("Part 1", part1);
 
-  console.log(`Part 2: ${result2}`);
+  const part2 = inputLines
+    .map(parseGame)
+    .map((game) =>
+      game.sets.map(countColors).reduce(
+        (maxCounts, counts) => {
+          return {
+            red: Math.max(maxCounts.red, counts.red),
+            green: Math.max(maxCounts.green, counts.green),
+            blue: Math.max(maxCounts.blue, counts.blue),
+          };
+        },
+        { red: 0, green: 0, blue: 0 }
+      )
+    )
+    .map((count) => count.red * count.green * count.blue)
+    .reduce((acc, v) => acc + v, 0);
+
+  tap("Part 2", part2);
 }
 
 run();
