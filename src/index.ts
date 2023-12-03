@@ -49,7 +49,7 @@ function expandNumbersXY(positions: Position[], origin: Position) {
 }
 
 async function run() {
-  const inputLines = (await fs.readFile("simple.txt", "utf-8"))
+  const inputLines = (await fs.readFile("input.txt", "utf-8"))
     .split("\n")
     .filter(Boolean);
 
@@ -83,21 +83,29 @@ async function run() {
     });
 
   const symbols = positions.filter(({ isSymbol }) => isSymbol);
+
   const surroundingNumbers = symbols.map((symb) => {
     const starts = symb.surrounding.filter(({ char }) => isNum(char));
     return {
       ...symb,
-      numbers: tap([
+      numbers: [
         ...new Set(starts.map((start) => expandNumbersXY(positions, start))),
-      ]),
+      ],
     };
   });
 
-  const sum = surroundingNumbers.reduce((acc, { numbers }) => {
-    return acc + numbers.reduce((acc, num) => acc + num, 0);
-  }, 0);
+  // const sum = surroundingNumbers.reduce((acc, { numbers }) => {
+  //   return acc + numbers.reduce((acc, num) => acc + num, 0);
+  // }, 0);
 
-  tap(sum);
+  // tap(sum);
+
+  const gearSums = surroundingNumbers
+    .filter(({ char, numbers }) => char === "*" && numbers.length === 2)
+    .map(({ numbers }) => numbers[0] * numbers[1])
+    .reduce((acc, num) => acc + num, 0);
+
+  tap(gearSums);
 }
 
 run();
