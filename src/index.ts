@@ -1,109 +1,103 @@
 import fs from "fs/promises";
 
-type Color = "red" | "green" | "blue";
-type Move = { amount: number; color: Color };
-type MoveSet = Move[][];
-type Game = {
-  id: number;
-  sets: MoveSet;
+type Position = {
+  x: number;
+  y: number;
+  char: string;
+  isSymbol: boolean;
+  surrounding: Position[];
 };
-
-type ColorCounts = Record<Color, number>;
-
-function trim(s: string) {
-  return s.trim();
-}
 
 function tap<T>(d: T, ...other: any[]) {
   console.log(d, ...other);
   return d;
 }
 
-function parseGame(str: string): Game {
-  const [title, ...setsStr] = str.split(":");
-  const [, id] = title.split(" ");
-
-  const sets: MoveSet = setsStr
-    .join("")
-    .split(";")
-    .map((setStr) =>
-      setStr
-        .split(",")
-        .map(trim)
-        .map((move) => {
-          const [amount, color] = move.split(" ").map(trim);
-
-          return {
-            color: color as Color,
-            amount: parseInt(amount),
-          };
-        })
-    );
-
-  return {
-    id: parseInt(id),
-    sets,
-  };
+function isSymbol(char: string) {
+  return !isNum(char) && char !== ".";
 }
 
-function countColors(set: Move[]): ColorCounts {
-  return set.reduce(
-    (max, { color, amount }) => {
-      return {
-        ...max,
-        [color]: max[color] + amount,
-      };
-    },
-    { red: 0, green: 0, blue: 0 } as ColorCounts
-  );
+function isNum(char: string) {
+  return !isNaN(Number(char));
 }
 
-function isGamePossible(max: ColorCounts, game: Game) {
-  return game.sets
-    .map(countColors)
-    .every((colorCount) =>
-      Object.entries(colorCount).every(
-        ([color, amount]) => amount <= max[color]
-      )
-    );
+function locate(positions: { x: number; y: number }[], x: number, y: number) {
+  return positions.find((pos) => pos.x === x && pos.y === y) as
+    | Position
+    | undefined;
+}
+
+function expandNumbersXY(positions: Position[], origin: Position) {
+  const matching: Position[] = [];
+  for (let x = origin.x; x >= 0; x--) {
+    const pos = locate(positions, x, origin.y);
+    if (pos && isNum(pos.char)) {
+      matching.unshift(pos);
+    } else {
+      break;
+    }
+  }
+  for (let x = origin.x + 1; x <= positions.length; x++) {
+    const pos = locate(positions, x, origin.y);
+    if (pos && isNum(pos.char)) {
+      matching.push(pos);
+    } else {
+      break;
+    }
+  }
+  return parseInt(matching.map((pos) => pos.char).join(""));
 }
 
 async function run() {
-  const inputLines = (await fs.readFile("input.txt", "utf-8"))
+  const inputLines = (await fs.readFile("simple.txt", "utf-8"))
     .split("\n")
     .filter(Boolean);
 
-  const max = {
-    red: 12,
-    green: 13,
-    blue: 14,
-  };
+  const charLines = inputLines.map((line) => line.split(""));
 
-  const part1 = inputLines
-    .map(parseGame)
-    .filter((game) => isGamePossible(max, game))
-    .reduce((acc, game) => acc + game.id, 0);
-
-  tap("Part 1", part1);
-
-  const part2 = inputLines
-    .map(parseGame)
-    .map((game) =>
-      game.sets.map(countColors).reduce(
-        (maxCounts, counts) => {
-          return {
-            red: Math.max(maxCounts.red, counts.red),
-            green: Math.max(maxCounts.green, counts.green),
-            blue: Math.max(maxCounts.blue, counts.blue),
-          };
-        },
-        { red: 0, green: 0, blue: 0 }
+  const positions = charLines
+    .map((line, y) =>
+      line.map(
+        (char, x) => ({ x, y, char, isSymbol: isSymbol(char) } as Position)
       )
     )
-    .map((count) => count.red * count.green * count.blue)
-    .reduce((acc, v) => acc + v, 0);
+    .flat()
+    .map((symbol, i, positions) => {
+      const { x, y } = symbol;
 
-  tap("Part 2", part2);
+      const surroundingCoords = [
+        { x: x - 1, y: y - 1 },
+        { x: x, y: y - 1 },
+        { x: x + 1, y: y - 1 },
+        { x: x + 1, y: y },
+        { x: x + 1, y: y + 1 },
+        { x: x, y: y + 1 },
+        { x: x - 1, y: y + 1 },
+        { x: x - 1, y: y },
+      ];
+
+      return {
+        ...symbol,
+        surrounding: surroundingCoords.map((c) => locate(positions, c.x, c.y)!),
+      } as Position;
+    });
+
+  const symbols = positions.filter(({ isSymbol }) => isSymbol);
+  const surroundingNumbers = symbols.map((symb) => {
+    const starts = symb.surrounding.filter(({ char }) => isNum(char));
+    return {
+      ...symb,
+      numbers: tap([
+        ...new Set(starts.map((start) => expandNumbersXY(positions, start))),
+      ]),
+    };
+  });
+
+  const sum = surroundingNumbers.reduce((acc, { numbers }) => {
+    return acc + numbers.reduce((acc, num) => acc + num, 0);
+  }, 0);
+
+  tap(sum);
 }
 
 run();
