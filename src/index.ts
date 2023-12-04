@@ -1,11 +1,10 @@
 import fs from "fs/promises";
 
-type Position = {
-  x: number;
-  y: number;
-  char: string;
-  isSymbol: boolean;
-  surrounding: Position[];
+type ScratchCard = {
+  winningNumbers: number[];
+  numbers: number[];
+  matchingNumbers: number[];
+  score: number;
 };
 
 function tap<T>(d: T, ...other: any[]) {
@@ -13,39 +12,33 @@ function tap<T>(d: T, ...other: any[]) {
   return d;
 }
 
-function isSymbol(char: string) {
-  return !isNum(char) && char !== ".";
-}
-
 function isNum(char: string) {
   return !isNaN(Number(char));
 }
 
-function locate(positions: { x: number; y: number }[], x: number, y: number) {
-  return positions.find((pos) => pos.x === x && pos.y === y) as
-    | Position
-    | undefined;
+function splitTrim(str: string, sep: string) {
+  return str.split(sep).map((s) => s.trim());
 }
 
-function expandNumbersXY(positions: Position[], origin: Position) {
-  const matching: Position[] = [];
-  for (let x = origin.x; x >= 0; x--) {
-    const pos = locate(positions, x, origin.y);
-    if (pos && isNum(pos.char)) {
-      matching.unshift(pos);
-    } else {
-      break;
-    }
-  }
-  for (let x = origin.x + 1; x <= positions.length; x++) {
-    const pos = locate(positions, x, origin.y);
-    if (pos && isNum(pos.char)) {
-      matching.push(pos);
-    } else {
-      break;
-    }
-  }
-  return parseInt(matching.map((pos) => pos.char).join(""));
+function filterMatching(arr: number[], numbers: number[]) {
+  return arr.filter((num) => numbers.includes(num));
+}
+
+function parseScratchCard(input: string): ScratchCard {
+  const [title, other] = splitTrim(input, ":");
+  const [winningNumbers, numbers] = splitTrim(other, "|").map((s) =>
+    splitTrim(s, " ").filter(Boolean).map(Number)
+  );
+  const matchingNumbers = filterMatching(numbers, winningNumbers);
+
+  const score = matchingNumbers.reduce((acc) => Math.max(0.5, acc) * 2, 0);
+
+  return {
+    winningNumbers,
+    numbers,
+    matchingNumbers,
+    score,
+  };
 }
 
 async function run() {
@@ -53,59 +46,10 @@ async function run() {
     .split("\n")
     .filter(Boolean);
 
-  const charLines = inputLines.map((line) => line.split(""));
+  const scratchCards = inputLines.map(parseScratchCard);
 
-  const positions = charLines
-    .map((line, y) =>
-      line.map(
-        (char, x) => ({ x, y, char, isSymbol: isSymbol(char) } as Position)
-      )
-    )
-    .flat()
-    .map((symbol, i, positions) => {
-      const { x, y } = symbol;
-
-      const surroundingCoords = [
-        { x: x - 1, y: y - 1 },
-        { x: x, y: y - 1 },
-        { x: x + 1, y: y - 1 },
-        { x: x + 1, y: y },
-        { x: x + 1, y: y + 1 },
-        { x: x, y: y + 1 },
-        { x: x - 1, y: y + 1 },
-        { x: x - 1, y: y },
-      ];
-
-      return {
-        ...symbol,
-        surrounding: surroundingCoords.map((c) => locate(positions, c.x, c.y)!),
-      } as Position;
-    });
-
-  const symbols = positions.filter(({ isSymbol }) => isSymbol);
-
-  const surroundingNumbers = symbols.map((symb) => {
-    const starts = symb.surrounding.filter(({ char }) => isNum(char));
-    return {
-      ...symb,
-      numbers: [
-        ...new Set(starts.map((start) => expandNumbersXY(positions, start))),
-      ],
-    };
-  });
-
-  // const sum = surroundingNumbers.reduce((acc, { numbers }) => {
-  //   return acc + numbers.reduce((acc, num) => acc + num, 0);
-  // }, 0);
-
-  // tap(sum);
-
-  const gearSums = surroundingNumbers
-    .filter(({ char, numbers }) => char === "*" && numbers.length === 2)
-    .map(({ numbers }) => numbers[0] * numbers[1])
-    .reduce((acc, num) => acc + num, 0);
-
-  tap(gearSums);
+  const scoreSum = scratchCards.reduce((acc, card) => acc + card.score, 0);
+  tap("Part 1:", scoreSum);
 }
 
 run();
